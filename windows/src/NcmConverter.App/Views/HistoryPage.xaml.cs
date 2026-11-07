@@ -42,7 +42,7 @@ public sealed partial class HistoryPage : Page
 
     private void Refresh()
     {
-        if (SearchBox is null || StatusFilter is null)
+        if (SearchBox is null || StatusFilter is null || HistoryList is null || EmptyState is null)
         {
             return;
         }
