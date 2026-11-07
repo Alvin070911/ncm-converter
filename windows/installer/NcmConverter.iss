@@ -43,3 +43,30 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  FindRec: TFindRec;
+  NameLower: String;
+begin
+  if CurStep = ssInstall then
+  begin
+    if FindFirst(ExpandConstant('{app}\*'), FindRec) then
+    begin
+      try
+        repeat
+          if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          begin
+            NameLower := Lowercase(FindRec.Name);
+            if (Pos('-', NameLower) > 0) and (NameLower <> 'zh-cn') and (NameLower <> 'en-us') then
+            begin
+              DelTree(ExpandConstant('{app}\') + FindRec.Name, True, True, True);
+            end;
+          end;
+        until not FindNext(FindRec);
+      finally
+        FindClose(FindRec);
+      end;
+    end;
+  end;
+end;

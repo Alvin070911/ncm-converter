@@ -2,6 +2,7 @@
 $windowsRoot = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $windowsRoot 'src\NcmConverter.App\NcmConverter.App.csproj'
 $publishDirectory = Join-Path $windowsRoot 'artifacts\exe\app'
+$buildDirectory = Join-Path $windowsRoot 'src\NcmConverter.App\bin\Release\net8.0-windows10.0.19041.0\win-x64'
 $issFile = Join-Path $PSScriptRoot 'NcmConverter.iss'
 
 if (Test-Path $publishDirectory) {
@@ -13,6 +14,19 @@ dotnet publish $project -c Release -r win-x64 --self-contained true --nologo -o 
 if ($LASTEXITCODE -ne 0) {
     throw 'dotnet publish 失败'
 }
+
+# dotnet publish 不会复制 WinUI 的 .pri/.xbf 资源文件，需从 Release 构建输出补齐。
+# 缺少 NcmConverter.App.pri 会导致启动时报 XamlParseException。
+if (Test-Path $buildDirectory) {
+    Copy-Item (Join-Path $buildDirectory '*') $publishDirectory -Recurse -Force
+}
+
+# 只保留中文与英文资源，移除安装目录里多余的区域语言文件夹。
+$keepLocales = @('zh-cn', 'en-us')
+Get-ChildItem $publishDirectory -Directory | Where-Object {
+    $_.Name -match '^[a-z]{2,3}(-[a-z0-9]+)+$' -and
+    $keepLocales -notcontains $_.Name.ToLowerInvariant()
+} | Remove-Item -Recurse -Force
 
 $isccCandidates = @(
     (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),

@@ -67,6 +67,7 @@ Windows 有两种安装包，按需选择：
 - 产物：`dist/Windows/NcmConverter-0.1.0-setup.exe`（约 61 MB）
 - 双击安装，无需管理员权限；默认安装到 `%LOCALAPPDATA%\Programs\NcmConverter`
 - 自动创建开始菜单快捷方式，可在 Windows「设置 → 应用」中卸载
+- 仅保留中文与英文语言资源；升级安装时会自动清理旧版本多余的区域语言文件夹
 - 重新生成：`powershell -ExecutionPolicy Bypass -File windows\installer\build-installer.ps1`（需 Inno Setup 6）
 - 安装包未使用受信任代码签名证书，SmartScreen 可能提示「未知发布者」；点击「更多信息 → 仍要运行」即可。要彻底消除提示，需要购买受信任的代码签名证书并对 EXE 签名。
 
