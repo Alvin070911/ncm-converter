@@ -347,6 +347,8 @@ public sealed class ConversionQueueService
     {
         private readonly DispatcherQueue? _dispatcher;
         private readonly ConversionItem _item;
+        private long _lastUpdateTimestamp;
+        private int _lastPercent = -1;
 
         public DispatcherProgress(DispatcherQueue dispatcher, ConversionItem item)
         {
@@ -356,13 +358,33 @@ public sealed class ConversionQueueService
 
         public void Report(DecodeProgress value)
         {
+            var percent = (int)Math.Round(value.Percent);
+            var now = Environment.TickCount64;
+
+            // 大文件每 64 KB 回调一次，直接把几千次更新压到 UI 线程会让界面卡住。
+            // 限制为最多约 10 次/秒，并降低优先级，保证输入事件优先处理。
+            if (now - _lastUpdateTimestamp < 100 && percent < 100)
+            {
+                return;
+            }
+
+            if (percent == _lastPercent && now - _lastUpdateTimestamp < 300)
+            {
+                return;
+            }
+
+            _lastUpdateTimestamp = now;
+            _lastPercent = percent;
+
             if (_dispatcher is null)
             {
                 _item.Progress = value.Percent;
                 return;
             }
 
-            _dispatcher.TryEnqueue(() => _item.Progress = value.Percent);
+            _dispatcher.TryEnqueue(
+                DispatcherQueuePriority.Low,
+                () => _item.Progress = value.Percent);
         }
     }
 }
