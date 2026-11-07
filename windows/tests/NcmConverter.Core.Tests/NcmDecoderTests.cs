@@ -83,6 +83,45 @@ public sealed class NcmDecoderTests
             Assert.Equal(AudioFormat.Mp3, result.Format);
             Assert.Equal(2507666L, result.AudioBytes);
             Assert.True(File.Exists(Path.Combine(outputDirectory, "cover.jpg")));
+
+            using var tagged = TagLib.File.Create(result.OutputPath);
+            Assert.Equal("隐藏相册", tagged.Tag.Title);
+            Assert.Equal(new[] { "Top Barry", "INDEcompany" }, tagged.Tag.Performers);
+            Assert.NotEmpty(tagged.Tag.Pictures);
+        }
+        finally
+        {
+            if (Directory.Exists(outputDirectory))
+            {
+                Directory.Delete(outputDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void DecodeWritesFlacTagsAndCover()
+    {
+        var path = FindSample("胡夏 - 那些年.ncm");
+        if (path is null)
+        {
+            return;
+        }
+
+        var outputDirectory = Path.Combine(Path.GetTempPath(), $"ncm-flac-test-{Guid.NewGuid():N}");
+        try
+        {
+            var result = _decoder.Decode(path, outputDirectory);
+
+            Assert.True(File.Exists(result.OutputPath));
+            Assert.EndsWith(".flac", result.OutputPath, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(AudioFormat.Flac, result.Format);
+
+            using var tagged = TagLib.File.Create(result.OutputPath);
+            Assert.Equal("那些年", tagged.Tag.Title);
+            Assert.Equal(new[] { "胡夏" }, tagged.Tag.Performers);
+            Assert.Equal("燃点", tagged.Tag.Album);
+
+            Assert.NotEmpty(tagged.Tag.Pictures);
         }
         finally
         {

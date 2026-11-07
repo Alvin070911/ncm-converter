@@ -1,0 +1,165 @@
+<Page
+    x:Class="NcmConverter.App.Views.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:NcmConverter.App.Models"
+    Loaded="Page_Loaded"
+    Unloaded="Page_Unloaded">
+
+    <Grid RowSpacing="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="20,16,20,0" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="2">
+                <TextBlock
+                    FontSize="24"
+                    FontWeight="SemiBold"
+                    Text="转换历史" />
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="最近 300 条记录，不会删除实际音频文件" />
+            </StackPanel>
+
+            <TextBox
+                x:Name="SearchBox"
+                Grid.Column="1"
+                Width="220"
+                VerticalAlignment="Center"
+                AutomationProperties.Name="搜索历史"
+                PlaceholderText="搜索歌名 / 歌手 / 路径"
+                TextChanged="Search_Changed" />
+
+            <ComboBox
+                x:Name="StatusFilter"
+                Grid.Column="2"
+                MinWidth="100"
+                VerticalAlignment="Center"
+                AutomationProperties.Name="状态筛选"
+                SelectedIndex="0"
+                SelectionChanged="Filter_Changed">
+                <ComboBoxItem Content="全部" Tag="all" />
+                <ComboBoxItem Content="成功" Tag="success" />
+                <ComboBoxItem Content="失败" Tag="failed" />
+            </ComboBox>
+
+            <Button
+                Grid.Column="3"
+                VerticalAlignment="Center"
+                Click="ClearHistory_Click"
+                Content="清空历史" />
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="20,8,20,16">
+            <ListView
+                x:Name="HistoryList"
+                SelectionMode="None">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="4" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:HistoryEntry">
+                        <Grid Padding="8" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border
+                                Width="40"
+                                Height="40"
+                                VerticalAlignment="Top"
+                                Background="{ThemeResource BrandSoftBrush}"
+                                CornerRadius="8">
+                                <FontIcon
+                                    FontSize="20"
+                                    Foreground="{ThemeResource BrandPinkBrush}"
+                                    Glyph="&#xE8D6;" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Text="{x:Bind DisplayTitle}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind Subtitle}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                    Text="{x:Bind DetailText}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <StackPanel
+                                Grid.Column="2"
+                                VerticalAlignment="Top"
+                                Spacing="4">
+                                <TextBlock
+                                    HorizontalAlignment="Right"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind TimeText}" />
+                                <TextBlock
+                                    HorizontalAlignment="Right"
+                                    FontSize="12"
+                                    Foreground="{x:Bind StatusBrush}"
+                                    Text="{x:Bind StatusText}" />
+                            </StackPanel>
+
+                            <StackPanel
+                                Grid.Column="3"
+                                VerticalAlignment="Top"
+                                Spacing="4">
+                                <Button
+                                    Click="OpenHistoryItem_Click"
+                                    Content="打开"
+                                    Tag="{x:Bind}" />
+                                <Button
+                                    Click="DeleteHistoryItem_Click"
+                                    Content="删除"
+                                    Tag="{x:Bind}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <StackPanel
+                x:Name="EmptyState"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsHitTestVisible="False"
+                Spacing="10">
+                <FontIcon
+                    HorizontalAlignment="Center"
+                    FontSize="36"
+                    Foreground="{ThemeResource BrandPinkBrush}"
+                    Glyph="&#xE81C;" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="16"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="还没有转换记录" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using NcmConverter.Core.Audio;
 using NcmConverter.Core.Conversion;
+using NcmConverter.Core.Tagging;
 
 namespace NcmConverter.Core.Ncm;
 
@@ -92,6 +93,12 @@ public sealed class NcmDecoder
             }
 
             File.Move(tempPath, finalPath);
+
+            if (options.WriteTags && format.SupportsTags())
+            {
+                warnings.AddRange(TagWriter.Write(
+                    finalPath, format, header.Metadata, header.CoverBytes, header.CoverMimeType));
+            }
 
             if (options.SaveCover && header.CoverBytes.Length > 0)
             {
@@ -275,7 +282,7 @@ public sealed class NcmDecoder
     {
         if (string.IsNullOrWhiteSpace(options.OutputFileName))
         {
-            return NamingPolicy.BuildFileName(header.Metadata, sourcePath, extension);
+            return NamingPolicy.BuildFileName(header.Metadata, sourcePath, extension, options.NamingMode);
         }
 
         var requested = Path.GetFileName(options.OutputFileName.Trim());

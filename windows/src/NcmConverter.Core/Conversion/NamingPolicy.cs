@@ -7,13 +7,21 @@ public static class NamingPolicy
 {
     private const int MaxNameLength = 180;
 
-    public static string BuildFileName(NcmMetadata metadata, string sourcePath, string extension)
+    public static string BuildFileName(
+        NcmMetadata metadata,
+        string sourcePath,
+        string extension,
+        NamingMode namingMode = NamingMode.Metadata)
     {
         var title = metadata.Title?.Trim();
         var artist = metadata.ArtistText.Trim();
 
         string stem;
-        if (!string.IsNullOrWhiteSpace(title))
+        if (namingMode == NamingMode.SourceFileName)
+        {
+            stem = Path.GetFileNameWithoutExtension(sourcePath);
+        }
+        else if (!string.IsNullOrWhiteSpace(title))
         {
             stem = string.IsNullOrWhiteSpace(artist) ? title : $"{title} - {artist}";
         }

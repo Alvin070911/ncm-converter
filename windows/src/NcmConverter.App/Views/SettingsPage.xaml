@@ -1,0 +1,222 @@
+<Page
+    x:Class="NcmConverter.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Loaded="Page_Loaded">
+
+    <ScrollViewer>
+        <StackPanel
+            Margin="20,16,20,24"
+            Spacing="12">
+            <StackPanel Spacing="2">
+                <TextBlock
+                    FontSize="24"
+                    FontWeight="SemiBold"
+                    Text="设置" />
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="修改后立即保存，无需额外确认" />
+            </StackPanel>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="14">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="外观" />
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="主题" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="默认使用 B站粉色主色调" />
+                        </StackPanel>
+                        <ComboBox
+                            x:Name="ThemeBox"
+                            Grid.Column="1"
+                            MinWidth="160"
+                            AutomationProperties.Name="主题"
+                            SelectionChanged="Theme_Changed">
+                            <ComboBoxItem Content="跟随系统" Tag="System" />
+                            <ComboBoxItem Content="浅色" Tag="Light" />
+                            <ComboBoxItem Content="深色" Tag="Dark" />
+                        </ComboBox>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="14">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="转换" />
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="输出位置" />
+                            <TextBlock
+                                x:Name="OutputDirectoryText"
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="与源文件同目录"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button
+                            Grid.Column="1"
+                            Click="ChangeOutput_Click"
+                            Content="更改" />
+                        <Button
+                            Grid.Column="2"
+                            Click="ResetOutput_Click"
+                            Content="恢复默认" />
+                    </Grid>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="文件命名" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="默认使用歌名与歌手信息命名" />
+                        </StackPanel>
+                        <ComboBox
+                            x:Name="NamingBox"
+                            Grid.Column="1"
+                            MinWidth="160"
+                            AutomationProperties.Name="文件命名"
+                            SelectionChanged="Naming_Changed">
+                            <ComboBoxItem Content="歌曲信息命名" Tag="Metadata" />
+                            <ComboBoxItem Content="保留原文件名" Tag="Original" />
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="重名处理" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="目标文件已存在时的行为" />
+                        </StackPanel>
+                        <ComboBox
+                            x:Name="ConflictBox"
+                            Grid.Column="1"
+                            MinWidth="160"
+                            AutomationProperties.Name="重名处理"
+                            SelectionChanged="Conflict_Changed">
+                            <ComboBoxItem Content="自动编号" Tag="Rename" />
+                            <ComboBoxItem Content="跳过" Tag="Skip" />
+                            <ComboBoxItem Content="覆盖" Tag="Overwrite" />
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="并发数" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="同时转换的文件数量，建议 2 个" />
+                        </StackPanel>
+                        <ComboBox
+                            x:Name="ConcurrencyBox"
+                            Grid.Column="1"
+                            MinWidth="160"
+                            AutomationProperties.Name="并发数"
+                            SelectionChanged="Concurrency_Changed">
+                            <ComboBoxItem Content="1 个" Tag="1" />
+                            <ComboBoxItem Content="2 个" Tag="2" />
+                            <ComboBoxItem Content="3 个" Tag="3" />
+                            <ComboBoxItem Content="4 个" Tag="4" />
+                        </ComboBox>
+                    </Grid>
+
+                    <ToggleSwitch
+                        x:Name="CoverToggle"
+                        Header="封面另存为图片"
+                        OffContent="关闭"
+                        OnContent="开启"
+                        Toggled="Cover_Toggled" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="14">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="历史与数据" />
+
+                    <ToggleSwitch
+                        x:Name="HistoryToggle"
+                        Header="记录转换历史"
+                        OffContent="关闭"
+                        OnContent="开启"
+                        Toggled="History_Toggled" />
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="清空历史" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="只删除记录，不会删除音频文件" />
+                        </StackPanel>
+                        <Button
+                            Grid.Column="1"
+                            Click="ClearHistory_Click"
+                            Content="清空" />
+                        <Button
+                            Grid.Column="2"
+                            Click="OpenDataDirectory_Click"
+                            Content="打开数据目录" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="6">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="关于输出" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="FLAC 源输出 .flac，MP3 源输出 .mp3；只解密容器，不做二次编码。转换不会修改或删除源 NCM 文件。"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -9,4 +9,8 @@ public sealed class DecodeOptions
     public ConflictPolicy ConflictPolicy { get; init; } = ConflictPolicy.Rename;
 
     public bool SaveCover { get; init; }
+
+    public bool WriteTags { get; init; } = true;
+
+    public NamingMode NamingMode { get; init; } = NamingMode.Metadata;
 }
