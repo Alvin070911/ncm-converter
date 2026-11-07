@@ -4,9 +4,9 @@
 
 把网易云音乐客户端下载的 `.ncm` 文件还原为原始音频：FLAC 源输出 `.flac`，MP3 源输出 `.mp3`；只解密容器，不做二次编码，并保留歌曲名、歌手、专辑与内嵌封面。
 
-> **项目状态：v0.1 设计阶段，功能尚未实现。** 需求与技术方案见 [设计文档](docs/NCM转FLAC工具-设计文档.md)。
+> **项目状态：v0.1.0 已实现 Windows 与 Android 客户端，核心算法已用 4 个真实 NCM 样本验证。** 需求与技术方案见 [设计文档](docs/NCM转FLAC工具-设计文档.md)。
 
-## 规划特性
+## 特性
 
 - **无损还原**：只解密 NCM 容器，MP3 源不会被转成 FLAC，音质与体积不变
 - **元数据与封面**：写入标题、歌手、专辑，嵌入容器内封面
@@ -25,19 +25,62 @@
 
 两端各自实现同一套转换规则，并通过统一测试向量保证解密结果逐字节一致。
 
-## 项目结构（规划）
+## 项目结构
 
 ```
 .
-├─ docs/                  # 需求与技术设计文档
-├─ windows/               # Windows 客户端（C# / WinUI 3）
-├─ android/               # Android 客户端（Kotlin / Compose）
-└─ testdata/              # 本地测试样本（版权文件，不提交）
+├─ docs/                       # 设计文档与测试报告
+├─ windows/
+│  ├─ NcmConverter.sln
+│  ├─ src/NcmConverter.Core/   # NCM 解析、解密、标签写入
+│  ├─ src/NcmConverter.Cli/    # 命令行验证工具
+│  ├─ src/NcmConverter.App/    # WinUI 3 客户端
+│  └─ tests/                   # xUnit 单元测试
+├─ android/
+│  └─ app/
+│     └─ src/main/java/com/ncmconverter/
+│        ├─ core/              # Kotlin 解密与标签写入
+│        ├─ data/              # 设置、历史、状态
+│        ├─ service/           # 前台转换服务、输出写入
+│        └─ ui/                # Compose 界面
+└─ testdata/                   # 本地测试样本（版权文件，不提交）
 ```
 
 ## 构建
 
-项目尚未开始编码。Windows 与 Android 的构建步骤将在核心模块完成后补充到本文档。
+### Windows
+
+需要 Windows 10 1809+、.NET 8 SDK、Windows App SDK。
+
+```powershell
+cd windows
+dotnet build NcmConverter.sln -c Release
+dotnet test NcmConverter.sln -c Release
+dotnet run --project src/NcmConverter.Cli -- verify-all ..\testdata
+dotnet run --project src/NcmConverter.App
+```
+
+MSIX 安装包生成在 `windows/artifacts/msix/NcmConverter_0.1.0.0_x64.msix`，配套自签名证书为 `windows/artifacts/msix/NcmConverter.cer`。安装前需将证书导入「受信任的根证书颁发机构」，否则 Windows 会阻止安装。
+
+### Android
+
+需要 JDK 17、Android SDK 36、Gradle 8.13。仓库自带 Gradle Wrapper。
+
+```bash
+cd android
+./gradlew assembleDebug
+# 或
+./gradlew assembleRelease
+./gradlew testDebugUnitTest
+```
+
+APK 输出在 `android/app/build/outputs/apk/`。当前 release 包使用 Android Debug 证书签名，正式分发前请替换为自己的 keystore。
+
+> 仓库路径包含中文时，`android/gradle.properties` 已设置 `android.overridePathCheck=true`；如果本机 Gradle 仍报路径问题，可将项目复制到纯 ASCII 路径构建。
+
+### 测试基准
+
+4 个真实样本的解密负载在 Windows 与 Android 两端必须逐字节一致，基准 SHA-256 见 [测试报告](docs/测试报告-2026-11-07.md)。
 
 ## 文档
 

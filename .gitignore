@@ -32,6 +32,9 @@ captures/
 *.keystore
 keystore.properties
 
+# 本地产物（安装包由 CI/本地构建生成，不入库）
+dist/
+
 # 日志与临时文件
 *.log
 *.tmp
