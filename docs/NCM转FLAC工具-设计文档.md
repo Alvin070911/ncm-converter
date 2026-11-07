@@ -54,7 +54,7 @@
 | 应用名称 | **NCM 转 FLAC** | 副标题说明"保留原始格式（FLAC/MP3）" |
 | Windows 分发形式 | **MSIX 安装包** | 标准安装/卸载，需处理签名与证书信任 |
 | Android 后台行为 | **允许后台继续**（前台服务 + 通知） | 切后台/锁屏不中断，通知栏可取消 |
-| 测试样本 | **用户提供真实 NCM 样本**（T1–T7） | 封面与异常分支可最终验证 |
+| 测试样本 | **已提供 4 个真实 NCM 样本**（3 个超清母带 FLAC + 1 个标准 MP3） | 主链路、Hi-Res 标签与封面已验证；无封面/旧版样本待补充 |
 | 视觉主题 | **B站配色**：主色 `#FB7299`，辅助色 `#00A1D6` | 粉色主按钮，深浅主题分别适配 |
 
 ---
@@ -492,12 +492,12 @@ android/
 // Android 侧示意；C# 侧为等价 record
 data class TrackMetadata(
     val title: String?,          // musicName
-    val artists: List<String>,   // artist[][1]
+    val artists: List<String>,   // artist[][0]（名称）
     val album: String?,          // album
     val bitrate: Int?,           // bitrate (bps)
     val durationMs: Long?,       // duration
     val declaredFormat: String?, // format（仅参考，最终以嗅探为准）
-    val coverUrl: String?        // cover（仅记录，不联网下载）
+    val coverUrl: String?        // albumPic（仅记录，不联网下载）
 )
 
 enum class TaskState { Pending, Analyzing, Queued, Converting, Tagging, Succeeded, Failed, Cancelled, Skipped }
@@ -566,78 +566,99 @@ interface NcmDecoder {
 
 ## 8. NCM 解密实现方案（核心）
 
-> 以下结构基于公开实现与社区文档整理，**最终以样本实测为准**。实现必须做字段合法性探测，不能盲信固定偏移。
+> 结构已用 4 个真实样本（3 个超清母带 FLAC + 1 个标准 MP3）实测验证。实现仍需对长度字段做合法性校验，避免异常文件导致越界、超大内存分配或错误偏移。
 
-### 8.1 容器结构
+### 8.1 容器结构（当前客户端格式）
 
 | 顺序 | 长度 | 字段 | 说明 |
 |---|---|---|---|
 | 1 | 8 B | magic | ASCII `CTENFDAM` |
-| 2 | 2 B | version | 常见 `0x01 0x70`；仅记录，不强制校验 |
-| 3 | 4 B | keyLen | uint32 LE |
-| 4 | keyLen | keyBlob | `163 key(Don't modify):` + Base64 密文 |
+| 2 | 2 B | version | 样本均为 `0x01 0x70`；仅记录，不强制校验 |
+| 3 | 4 B | keyLen | 样本恒为 128（uint32 LE） |
+| 4 | keyLen | keyBlob | 128 字节 AES-ECB 密文；读取后整体 XOR `0x64` |
 | 5 | 4 B | metaLen | uint32 LE |
-| 6 | metaLen | metaBlob | 同前缀 + Base64 密文 |
-| 7 | 4 B | crc32 | 含义未公开；**仅记录，不做阻断校验** |
-| 8 | 5 B | reserved | 保留字节，跳过 |
-| 9 | 4 B | coverLen | uint32 LE；可能为 0 |
-| 10 | coverLen | cover | 内嵌封面，通常 JPEG/PNG |
-| 11 | 剩余 | audio | 加密音频流，直至文件末尾 |
+| 6 | metaLen | metaBlob | 读取后整体 XOR `0x63`，得到 `163 key(Don't modify):` + Base64 密文 |
+| 7 | 4 B | crc32 | 含义未公开；实测**不是**封面 CRC32，仅记录不阻断 |
+| 8 | 1 B | imageVersion | 样本均为 1 |
+| 9 | 4 B | coverFrameLen | 封面帧总长度（uint32 LE） |
+| 10 | 4 B | coverImageLen | 实际图片字节数 |
+| 11 | coverImageLen | cover | 内嵌封面，样本为 JPEG |
+| 12 | coverFrameLen − coverImageLen | padding | 样本为 0，解析时按差值跳过 |
+| 13 | 剩余 | audio | 加密音频流，直至文件末尾 |
+
+实测样本：
+
+| 样本 | 文件大小 | 音频大小 | 格式 | 规格 / 码率 | 封面 | 元数据 |
+|---|---|---|---|---|---|---|
+| A | 262.73 MB | 262.56 MB | FLAC | 192 kHz / 24 bit / 2 ch，约 5 Mbps | JPEG 179,809 B | 单歌手、日文名 |
+| B | 244.26 MB | 243.88 MB | FLAC | 192 kHz / 24 bit / 2 ch，约 5 Mbps | JPEG 401,997 B | 单歌手、日文名 |
+| C | 234.25 MB | 233.92 MB | FLAC | 192 kHz / 24 bit / 2 ch，约 5 Mbps | JPEG 352,464 B | 单歌手、中文名 |
+| D | 2.74 MB | 2.39 MB | MP3 | 128 kbps，时长 156.598 s | JPEG 368,998 B | 双歌手、中文名 |
 
 健壮性处理：
 
-- `coverLen` 必须满足 `> 0 && <= 20 MB && 不超过文件剩余长度`，否则视为无封面，并将音频起点回退到第 8 段之后
-- 音频起点最终通过「解密前 4 KB 并嗅探格式」确认；若失败，尝试偏移校正（±1 字节级探测）并记录诊断日志
+- `keyLen` 应为 128；若为其他值，或 XOR + AES 解密后前 17 字节不是 `neteasecloudmusic`，按 `E003_KEY_DECRYPT` 处理
+- `coverFrameLen` / `coverImageLen` 必须 `<= 20 MB`、总和不超出文件剩余长度；`coverFrameLen < coverImageLen` 视为损坏
+- 音频起点 = 元数据结束 + 4 + 1 + 4 + 4 + `coverFrameLen`
+- 音频起点最终通过「解密前 4 KB 并嗅探格式」确认；失败时记录偏移诊断日志
 - 所有长度字段做上界校验，防止恶意文件导致超大内存分配
 
-### 8.2 密钥解密
+### 8.2 密钥解密（当前客户端格式）
 
 ```
-prefix = "163 key(Don't modify):"   // 22 字节
-cipher = Base64Decode(keyBlob[22:]) // 去空白，长度必须为 16 的倍数
-plain  = AES-128-ECB-Decrypt(cipher, key = ASCII("neteasecloudmusic"))
-key    = plain[6:]                  // 去掉固定前缀 "music:"
+raw    = keyBlob XOR 0x64                 // 逐字节异或
+plain  = AES-128-ECB-Decrypt(raw, key = ASCII("hzHRAmso5kInbaxW"))
+plain  = PKCS7-Unpad(plain)               // 样本末尾填充为 0x0D
+prefix = ASCII(plain 的前 17 字节)         // 固定 "neteasecloudmusic"
+key    = plain 从第 17 字节起（0-based）     // 变长 ASCII 密钥串，样本为 98/99 字节
 ```
 
-- AES 使用 ECB、PKCS7 前需注意：该数据为固定块解密，无填充处理
-- Base64 解码失败、长度非 16 倍数、AES 结果前缀不符 → 报 `E003_KEY_DECRYPT`
-- 密钥为空 → `E003`
+- 核心 AES 密钥为 16 字节：`hzHRAmso5kInbaxW`
+- XOR 掩码为 `0x64`
+- 必须先去除 PKCS7 填充再截取 key；填充字节不能参与 keybox 构建
+- XOR/AES 失败、前缀不符 → 报 `E003_KEY_DECRYPT`；密钥为空 → `E003`
 
-### 8.3 元数据解密
+### 8.3 元数据解密（当前客户端格式）
 
 ```
-prefix = "163 key(Don't modify):"
-cipher = Base64Decode(metaBlob[22:])
-plain  = AES-128-ECB-Decrypt(cipher, "neteasecloudmusic")
-json   = UTF8(plain[6:])            // 去掉 "music:"
+raw    = metaBlob XOR 0x63                 // 逐字节异或
+prefix = ASCII(raw 的前 22 字节)            // 固定 "163 key(Don't modify):"
+cipher = Base64Decode(raw 从第 22 字节起)
+plain  = AES-128-ECB-Decrypt(cipher, key = [0x23,0x31,0x34,0x6C,0x6A,0x6B,0x5F,0x21,0x5C,0x5D,0x26,0x30,0x55,0x3C,0x27,0x28])
+plain  = PKCS7-Unpad(plain)
+text   = UTF8(plain) 去掉前 6 个字符        // 去掉 "music:"
+json   = JSON.parse(text)
 ```
 
-元数据为 JSON（UTF-8），常见字段：
+- 元数据 AES 密钥为 16 字节 `2314ljk_!\]&0U<'(`（按字节表示）
+- XOR 掩码为 `0x63`
+- 样本元数据 JSON（节选）：
 
 ```json
 {
-  "musicId": "123456789",
-  "musicName": "歌曲名",
-  "artist": [[123456, "歌手 A"], [234567, "歌手 B"]],
-  "album": "专辑名",
-  "bitrate": 320000,
-  "duration": 245000,
-  "format": "mp3",
-  "cover": "https://p1.music.126.net/xxx.jpg"
+  "musicId": "28151022",
+  "musicName": "鳥の詩",
+  "artist": [["Lia", "16993"]],
+  "album": "AIR ORIGINAL SOUNDTRACK",
+  "albumPic": "http://p4.music.126.net/...jpg",
+  "bitrate": 4999000,
+  "duration": 368000,
+  "format": "flac"
 }
 ```
 
 解析策略：
 
-- 字段缺失/类型异常 → 对应字段置空，继续转换（`E004` 仅作为警告）
-- `artist` 兼容 `[[id, name]]` 与 `["name"]` 两种形态
+- `artist` 元素为 **`[name, id]`**（名称在前）；兼容纯字符串，以及首元素为纯数字、次元素为非数字的异常形态
+- 封面 URL 字段为 `albumPic`（样本中不存在 `cover` 字段）；仅用于历史展示，不联网下载
 - `duration` 单位毫秒；`bitrate` 单位 bps
 - `format` 仅作参考，输出扩展名以真实嗅探结果为准
+- 字段缺失/类型异常 → 对应字段置空，继续转换（`E004` 仅作为警告）
 - 整体 JSON 解析失败 → 无标签转换，记录警告，不阻断
 
 ### 8.4 音频流解密
 
-NCM 使用基于密钥的 keybox（RC4 变体）对音频逐字节 XOR，keybox 只构建一次，字节位置参与索引。
+NCM 使用基于密钥的 keybox（RC4 变体）对音频逐字节 XOR，keybox 只构建一次，字节位置参与索引。key 为 8.2 解出的字节串（已去除 PKCS7 填充与 17 字节 `neteasecloudmusic` 前缀）。
 
 ```
 // 构建 keybox
@@ -681,9 +702,10 @@ plain[n] = cipher[n] ^ keybox[(keybox[j] + keybox[t]) & 0xFF]
 
 ### 8.6 封面处理
 
-- 封面字节来自容器第 10 段，可能为空
+- 封面位于容器第 11 段，长度 `coverImageLen`，可能为 0；`coverFrameLen` 大于图片长度时，差值部分为填充，需跳过
 - MIME 通过魔数判定：`FF D8 FF` → JPEG；`89 50 4E 47` → PNG；其他 → 以 `application/octet-stream` 保存/嵌入并警告
 - 尺寸解析：JPEG 读 SOF 段，PNG 读 IHDR，用于 FLAC PICTURE 块字段与 UI 缩略图；解析失败时字段填 0
+- 元数据中的 `albumPic` 仅作为历史展示用的封面 URL 记录，不联网下载
 - 嵌入规则：
   - FLAC：PICTURE 块，类型 3（front cover），描述为空
   - MP3：ID3v2.3 APIC 帧，编码 UTF-16，图片类型 3
@@ -821,17 +843,19 @@ plain[n] = cipher[n] ^ keybox[(keybox[j] + keybox[t]) & 0xFF]
 
 ## 11. 测试与验收
 
-### 11.1 测试样本要求（**需用户提供**）
+### 11.1 测试样本（已提供 4 个，当前客户端格式）
 
-| 编号 | 类型 | 用途 |
-|---|---|---|
-| T1 | FLAC 源 NCM，带封面 | 主链路、标签、封面、格式识别 |
-| T2 | MP3 源 NCM，带封面 | 保留 MP3、标签、封面 |
-| T3 | 无封面 NCM | 无封面分支 |
-| T4 | 元数据缺失/异常 NCM | 降级策略 |
-| T5 | 截断/损坏文件（可人工构造） | 错误处理、清理 |
-| T6 | 大文件（> 300 MB） | 流式内存、进度 |
-| T7 | 特殊字符歌名/超长歌名 | 命名清理 |
+| 编号 | 类型 | 实测属性 | 用途 | 状态 |
+|---|---|---|---|---|
+| T1 | 超清母带 FLAC（日文单歌手） | 262.73 MB；FLAC 192 kHz / 24 bit / 2 ch；封面 JPEG 179,809 B | 主链路、Hi-Res 标签、封面、格式识别 | 已提供 |
+| T2 | 超清母带 FLAC（日文单歌手） | 244.26 MB；FLAC 192 kHz / 24 bit / 2 ch；封面 JPEG 401,997 B | 封面尺寸差异、日文标签 | 已提供 |
+| T3 | 超清母带 FLAC（中文单歌手） | 234.25 MB；FLAC 192 kHz / 24 bit / 2 ch；封面 JPEG 352,464 B | 中文标签、大文件流式内存 | 已提供 |
+| T4 | 标准 MP3（双歌手） | 2.74 MB；MP3 128 kbps；156.598 s；封面 JPEG 368,998 B | 保留 MP3、ID3 标签、双歌手 | 已提供 |
+| T5 | 无封面 NCM | — | 无封面分支 | 待构造（可从 T1 移除封面段并修正头部长度） |
+| T6 | 截断/损坏 NCM | — | 错误处理、临时文件清理 | 可构造 |
+| T7 | 特殊字符/超长歌名 | — | 命名清理 | 用合成元数据单测，无需额外 NCM |
+
+> 4 个样本均为当前客户端格式（XOR `0x64` / `0x63` + 独立 AES 密钥）。暂无旧版 NCM 样本，旧格式兼容按公开实现做尽力支持，不影响本期主链路。
 
 > 样本涉及版权，仅保存在本地 `testdata/`，不提交、不随包分发。另记录每个样本解密后音频负载的 SHA-256，用于回归。
 
@@ -840,7 +864,7 @@ plain[n] = cipher[n] ^ keybox[(keybox[j] + keybox[t]) & 0xFF]
 | 层 | 内容 |
 |---|---|
 | 单元测试 | 头部解析、长度校验、密钥解密、元数据解析、keybox 构建、逐块偏移一致性、格式嗅探、命名清理、冲突策略、错误映射 |
-| 黄金向量 | C# 与 Kotlin 对同一 T1–T7 输出的**解密音频负载 SHA-256 必须完全一致** |
+| 黄金向量 | C# 与 Kotlin 对同一 T1–T4（及构造样本）输出的**解密音频负载 SHA-256 必须完全一致** |
 | 标签测试 | 写入后用 `ffprobe` / `metaflac --list` 校验 TITLE/ARTIST/ALBUM 与封面存在 |
 | Android | JUnit + 仪器测试：SAF 读取、MediaStore 写入、前台服务取消 |
 | Windows | Core 单测；UI 关键流程手工测试清单 |
@@ -904,10 +928,10 @@ plain[n] = cipher[n] ^ keybox[(keybox[j] + keybox[t]) & 0xFF]
 
 | 风险 | 影响 | 对策 |
 |---|---|---|
-| 缺少真实样本 | 无法确认封面段/异常分支 | 评审时提供 T1–T7；开发前用公开格式文档 + 探测式解析先行 |
-| NCM 客户端版本变化 | 新变体解析失败 | 魔数/版本/长度全做校验；错误可诊断；解析器可扩展；不盲信固定偏移 |
-| 封面段字段语义不完全确定 | 封面偏移误判 | `coverLen` 合法性校验 + 音频起点格式嗅探 + 偏移回退 |
-| CRC32 含义不明 | 无法校验完整性 | 仅记录不阻断；用解密后格式嗅探与播放验证兜底 |
+| 样本覆盖不全 | 缺无封面与旧版样本 | 已用 4 个真实样本验证主链路；构造无封面/损坏样本；旧版格式仅尽力兼容 |
+| NCM 客户端版本变化 | 新变体解析失败 | 已实测当前 XOR/AES 格式；魔数/长度/前缀全校验；错误可诊断；解析器可扩展 |
+| 封面帧双长度字段 | 音频偏移误判 | 校验 `coverFrameLen` / `coverImageLen` + 跳过 padding + 音频起点格式嗅探 |
+| CRC32 含义不明 | 无法校验完整性 | 实测不是封面 CRC32；仅记录不阻断，用格式嗅探与播放验证兜底 |
 | WinUI 3 打包/签名复杂 | 安装失败/信任提示 | 默认 MSIX + 自签名说明；提供自包含便携包兜底 |
 | Windows 10 1809 兼容 | 部分老系统异常 | 明确最低版本；在 Win10 22H2 实机回归 |
 | Android 前台服务限制 | 后台被系统停止 | `dataSync` 类型前台服务 + 通知；任务短时；提供取消；不使用 WorkManager 长任务 |
@@ -923,7 +947,7 @@ plain[n] = cipher[n] ^ keybox[(keybox[j] + keybox[t]) & 0xFF]
 | 阶段 | 内容 | 退出标准 |
 |---|---|---|
 | M0 评审冻结 | 确认本文档、提供样本、确定分发与命名 | 文档升 v1.0，待确认项全部关闭 |
-| M1 Windows 核心 | NCM 解析/解密/嗅探/标签 + Core 单测 | T1–T7 全部通过，输出哈希与预期一致 |
+| M1 Windows 核心 | NCM 解析/解密/嗅探/标签 + Core 单测 | T1–T4 全部通过；T5–T7 构造样本覆盖 |
 | M2 Windows UI MVP | 导入、队列、转换、进度、取消、输出 | A1/A2/A4/A5 通过 |
 | M3 Windows 完整版 | 历史、设置、主题、错误详情、汇总 | A7/A8/A12 通过，MSIX 可安装 |
 | M4 Android 核心 | Kotlin 解析/解密/嗅探/自研标签 + 单测 | 与 C# 输出哈希逐字节一致 |
