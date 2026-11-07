@@ -52,7 +52,7 @@
 | Windows UI 框架 | **WinUI 3**（Windows App SDK） | Win11 原生观感，需注意打包与最低系统版本 |
 | 附加功能 | 元数据+封面保留、深/浅主题、转换历史 | 均纳入本期范围 |
 | 应用名称 | **NCM 转 FLAC** | 副标题说明"保留原始格式（FLAC/MP3）" |
-| Windows 分发形式 | **MSIX 安装包** | 标准安装/卸载，需处理签名与证书信任 |
+| Windows 分发形式 | **EXE 安装包 + MSIX** | EXE（Inno Setup）可直接安装；MSIX 需处理自签名证书信任 |
 | Android 后台行为 | **允许后台继续**（前台服务 + 通知） | 切后台/锁屏不中断，通知栏可取消 |
 | 测试样本 | **已提供 4 个真实 NCM 样本**（3 个超清母带 FLAC + 1 个标准 MP3） | 主链路、Hi-Res 标签与封面已验证；无封面/旧版样本待补充 |
 | 视觉主题 | **B站配色**：主色 `#FB7299`，辅助色 `#00A1D6` | 粉色主按钮，深浅主题分别适配 |
@@ -902,7 +902,7 @@ plain[n] = cipher[n] ^ keybox[(keybox[j] + keybox[t]) & 0xFF]
 |---|---|
 | 设计文档 | 本文件（评审冻结后升 v1.0） |
 | Windows 源码 | `windows/`，含 Core 单测 |
-| Windows 安装包 | MSIX 安装包（本期交付形式） |
+| Windows 安装包 | EXE 安装包（Inno Setup，可直接安装）+ MSIX 安装包 |
 | Android 源码 | `android/`，含单测 |
 | Android 安装包 | 签名 APK（universal） |
 | 测试报告 | 自动化结果 + A1–A12 手工验收记录 + 样本哈希清单 |
@@ -913,8 +913,8 @@ plain[n] = cipher[n] ^ keybox[(keybox[j] + keybox[t]) & 0xFF]
 **Windows**
 
 - Windows 10 1809+，.NET SDK（按选定版本），Windows App SDK
-- `dotnet build` / `dotnet publish`；MSIX 需签名证书（自用可用自签名，需用户确认安装信任方式）
-- MSIX 采用 Windows App SDK 自包含部署（`WindowsAppSDKSelfContained`），避免要求用户预装运行时
+- `dotnet build` / `dotnet publish`；EXE 安装包使用 Inno Setup 6 编译（`windows/installer/build-installer.ps1`）
+- MSIX 需签名证书（自用可用自签名，需用户信任根证书）；采用 Windows App SDK 自包含部署（`WindowsAppSDKSelfContained`）
 
 **Android**
 

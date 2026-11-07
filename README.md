@@ -60,7 +60,23 @@ dotnet run --project src/NcmConverter.Cli -- verify-all ..\testdata
 dotnet run --project src/NcmConverter.App
 ```
 
-MSIX 安装包生成在 `windows/artifacts/msix/NcmConverter_0.1.0.0_x64.msix`，配套自签名证书为 `windows/artifacts/msix/NcmConverter.cer`。安装前需将证书导入「受信任的根证书颁发机构」，否则 Windows 会阻止安装。
+Windows 有两种安装包，按需选择：
+
+**EXE 安装包（推荐，可直接安装）**
+
+- 产物：`dist/Windows/NcmConverter-0.1.0-setup.exe`（约 61 MB）
+- 双击安装，无需管理员权限；默认安装到 `%LOCALAPPDATA%\Programs\NcmConverter`
+- 自动创建开始菜单快捷方式，可在 Windows「设置 → 应用」中卸载
+- 重新生成：`powershell -ExecutionPolicy Bypass -File windows\installer\build-installer.ps1`（需 Inno Setup 6）
+- 安装包未使用受信任代码签名证书，SmartScreen 可能提示「未知发布者」；点击「更多信息 → 仍要运行」即可。要彻底消除提示，需要购买受信任的代码签名证书并对 EXE 签名。
+
+**MSIX 安装包**
+
+- 产物：`windows/artifacts/msix/NcmConverter_0.1.0.0_x64.msix`
+- 配套自签名证书：`windows/artifacts/msix/NcmConverter.cer`
+- 安装前需将证书导入「受信任的根证书颁发机构」，否则 Windows 会阻止安装
+
+> MSIX 不能直接转换成 EXE；EXE 安装包是用 Inno Setup 对同一份 Windows 应用重新打包，二者安装的是同一程序。
 
 ### Android
 
