@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using Microsoft.UI.Dispatching;
 using NcmConverter.App.Models;
 using NcmConverter.Core.Audio;
@@ -258,15 +259,17 @@ public sealed class ConversionQueueService
             else
             {
                 item.Status = ConversionStatus.Failed;
-                item.ErrorMessage = ex.Message;
-                AddHistory(item, startedAt, "failed", GetSourceFormat(item), null, ex.Message);
+                item.ErrorMessage = BuildErrorMessage(ex);
+                LogConversionError(item.SourcePath, ex);
+                AddHistory(item, startedAt, "failed", GetSourceFormat(item), null, item.ErrorMessage);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             item.Status = ConversionStatus.Failed;
-            item.ErrorMessage = "转换失败";
-            AddHistory(item, startedAt, "failed", GetSourceFormat(item), null, "转换失败");
+            item.ErrorMessage = BuildErrorMessage(ex);
+            LogConversionError(item.SourcePath, ex);
+            AddHistory(item, startedAt, "failed", GetSourceFormat(item), null, item.ErrorMessage);
         }
         finally
         {
@@ -310,34 +313,83 @@ public sealed class ConversionQueueService
             return;
         }
 
-        long outputSize = 0;
-        if (outputPath is not null && File.Exists(outputPath))
+        try
         {
-            try
+            long outputSize = 0;
+            if (outputPath is not null && File.Exists(outputPath))
             {
-                outputSize = new FileInfo(outputPath).Length;
+                try
+                {
+                    outputSize = new FileInfo(outputPath).Length;
+                }
+                catch
+                {
+                    // 忽略读取失败
+                }
             }
-            catch
+
+            _history.Add(new HistoryEntry
             {
-                // 忽略读取失败
+                Title = item.Info?.Metadata.Title,
+                Artists = item.Info?.Metadata.ArtistText,
+                Album = item.Info?.Metadata.Album,
+                SourceFormat = GetSourceFormat(item),
+                OutputFormat = outputFormat,
+                SourceSize = item.Info?.FileSize ?? 0,
+                OutputSize = outputSize,
+                OutputPath = outputPath,
+                FinishedAt = DateTimeOffset.Now,
+                ElapsedMs = (long)(DateTimeOffset.Now - startedAt).TotalMilliseconds,
+                Status = status,
+                ErrorMessage = errorMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            // 历史记录写入失败不能把已经成功的转换改判为失败。
+            LogConversionError(item.SourcePath, ex);
+        }
+    }
+
+    private static string BuildErrorMessage(Exception exception)
+    {
+        var builder = new StringBuilder(exception.Message);
+        var inner = exception.InnerException;
+        var depth = 0;
+
+        while (inner is not null && depth < 3)
+        {
+            var message = inner.Message;
+            if (!string.IsNullOrWhiteSpace(message) &&
+                !builder.ToString().Contains(message, StringComparison.Ordinal))
+            {
+                builder.Append("：").Append(message);
             }
+
+            inner = inner.InnerException;
+            depth++;
         }
 
-        _history.Add(new HistoryEntry
+        return builder.ToString();
+    }
+
+    private static void LogConversionError(string sourcePath, Exception exception)
+    {
+        try
         {
-            Title = item.Info?.Metadata.Title,
-            Artists = item.Info?.Metadata.ArtistText,
-            Album = item.Info?.Metadata.Album,
-            SourceFormat = GetSourceFormat(item),
-            OutputFormat = outputFormat,
-            SourceSize = item.Info?.FileSize ?? 0,
-            OutputSize = outputSize,
-            OutputPath = outputPath,
-            FinishedAt = DateTimeOffset.Now,
-            ElapsedMs = (long)(DateTimeOffset.Now - startedAt).TotalMilliseconds,
-            Status = status,
-            ErrorMessage = errorMessage
-        });
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NcmConverter");
+            Directory.CreateDirectory(directory);
+            File.AppendAllText(
+                Path.Combine(directory, "conversion.log"),
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {sourcePath}{Environment.NewLine}{exception}{Environment.NewLine}{Environment.NewLine}",
+                Encoding.UTF8);
+        }
+        catch
+        {
+            // 日志写入失败不影响转换
+        }
     }
 
     private static string GetSourceFormat(ConversionItem item) =>

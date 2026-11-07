@@ -58,12 +58,11 @@ public sealed class NcmDecoder
         var header = NcmContainerReader.Read(sourcePath);
         var directory = outputDirectory ?? Path.GetDirectoryName(Path.GetFullPath(sourcePath)) ?? ".";
         var warnings = header.Warnings;
-
-        Directory.CreateDirectory(directory);
         var tempPath = Path.Combine(directory, $".ncm-{Guid.NewGuid():N}.tmp");
 
         try
         {
+            Directory.CreateDirectory(directory);
             progress?.Report(new DecodeProgress(0, header.AudioLength));
 
             using var input = OpenAudioStream(sourcePath, header);

@@ -77,7 +77,25 @@ public sealed class HistoryService
     private void Save()
     {
         var tempPath = _path + ".tmp";
-        File.WriteAllText(tempPath, JsonSerializer.Serialize(_entries, JsonOptions), Encoding.UTF8);
-        File.Move(tempPath, _path, overwrite: true);
+        try
+        {
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(_entries, JsonOptions), Encoding.UTF8);
+            File.Move(tempPath, _path, overwrite: true);
+        }
+        catch
+        {
+            // 历史记录属于辅助数据，写入失败不能影响转换结果。
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch
+            {
+                // 忽略清理失败
+            }
+        }
     }
 }
