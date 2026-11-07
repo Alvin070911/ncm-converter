@@ -82,9 +82,30 @@ APK 输出在 `android/app/build/outputs/apk/`。当前 release 包使用 Androi
 
 4 个真实样本的解密负载在 Windows 与 Android 两端必须逐字节一致，基准 SHA-256 见 [测试报告](docs/测试报告-2026-11-07.md)。
 
+## 界面截图
+
+### Windows
+
+![Windows 转换页](docs/screenshots/windows-convert-dark.png)
+
+![Windows 设置页（深色）](docs/screenshots/windows-settings-dark.png)
+
+![Windows 设置页（浅色）](docs/screenshots/windows-settings-light.png)
+
+### Android
+
+![Android 首页](docs/screenshots/android-home.png)
+
+![Android 转换结果](docs/screenshots/android-result.png)
+
+![Android 历史记录](docs/screenshots/android-history.png)
+
+![Android 设置页（深色）](docs/screenshots/android-settings-dark.png)
+
 ## 文档
 
 - [需求与技术设计文档](docs/NCM转FLAC工具-设计文档.md)
+- [测试报告（2026-11-07）](docs/测试报告-2026-11-07.md)
 
 ## 合规声明
 
